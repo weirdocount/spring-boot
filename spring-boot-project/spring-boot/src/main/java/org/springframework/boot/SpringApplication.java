@@ -284,11 +284,16 @@ public class SpringApplication {
 		this.resourceLoader = resourceLoader;
 		Assert.notNull(primarySources, "PrimarySources must not be null");
 		this.primarySources = new LinkedHashSet<>(Arrays.asList(primarySources));
+
+		//获取应用类型
 		this.webApplicationType = WebApplicationType.deduceFromClasspath();
+
 		// 初始化 initializers 属性
 		setInitializers((Collection) getSpringFactoriesInstances(ApplicationContextInitializer.class));
-		// 初始化 listeners 属性
+
+		// 初始化 listeners 属性，应用监听器
 		setListeners((Collection) getSpringFactoriesInstances(ApplicationListener.class));
+
 		// 初始化 mainApplicationClass 属性
 		this.mainApplicationClass = deduceMainApplicationClass();
 	}
@@ -322,30 +327,46 @@ public class SpringApplication {
 		//
 		ConfigurableApplicationContext context = null;
 		Collection<SpringBootExceptionReporter> exceptionReporters = new ArrayList<>();
-		// 配置 headless 属性
+		//java.awt.headless是J2SE的一种模式用于在缺少显示屏、键盘或者鼠标时的系统配置，
+		//很多监控工具如jconsole 需要将该值设置为true，系统变量默认为true
 		configureHeadlessProperty();
-		// 获得 SpringApplicationRunListener 的数组，并启动监听
+
+		//第一步：获取并启动监听器 的数组，从META-INF/spring.factories获取
 		SpringApplicationRunListeners listeners = getRunListeners(args);
+
+		//启动监听
 		listeners.starting();
 		try {
 		    // 创建  ApplicationArguments 对象
 			ApplicationArguments applicationArguments = new DefaultApplicationArguments(args);
             // 加载属性配置。执行完成后，所有的 environment 的属性都会加载进来，包括 application.properties 和外部的属性配置。
+			//【扩展点】自定义属性的扩展点EnvironmentPostProcessor，通过ConfigFileApplicationListener来桥梁
+
+			//第二步：构造容器环境
 			ConfigurableEnvironment environment = prepareEnvironment(listeners, applicationArguments);
 			configureIgnoreBeanInfo(environment);
 			// 打印 Spring Banner
 			Banner printedBanner = printBanner(environment);
-            // 创建 Spring 容器。
+
+			//第三步：创建容器
 			context = createApplicationContext();
+
 			// 获得异常报告器 SpringBootExceptionReporter 数组
+			//第四步：实例化SpringBootExceptionReporter.class，用来支持报告关于启动的错误
 			exceptionReporters = getSpringFactoriesInstances(
 					SpringBootExceptionReporter.class,
 					new Class[] { ConfigurableApplicationContext.class }, context);
+
+			//第五步：准备容器
 			// 主要是调用所有初始化类的 initialize 方法
 			prepareContext(context, environment, listeners, applicationArguments,
 					printedBanner);
+
+			//第六步：刷新容器
 			// 初始化 Spring 容器。
 			refreshContext(context);
+
+			//第七步：刷新容器后的扩展接口
 			// 执行 Spring 容器的初始化的后置逻辑。默认实现为空。
 			afterRefresh(context, applicationArguments);
 			// 停止 StopWatch 统计时长
@@ -379,11 +400,16 @@ public class SpringApplication {
 		// Create and configure the environment
         // 创建 ConfigurableEnvironment 对象，并进行配置
 		ConfigurableEnvironment environment = getOrCreateEnvironment();
+
+		//解析对应的启动行参数
 		configureEnvironment(environment, applicationArguments.getSourceArgs());
-        // 通知 SpringApplicationRunListener 的数组，环境变量已经准备完成。
+
+        // 第二次通知 启动监听器的数组，环境变量已经准备完成。
 		listeners.environmentPrepared(environment);
+
 		// 绑定 environment 到 SpringApplication 上
 		bindToSpringApplication(environment);
+
 		// 如果非自定义 environment ，则根据条件转换
 		if (!this.isCustomEnvironment) {
 			environment = new EnvironmentConverter(getClassLoader()).convertEnvironmentIfNecessary(environment, deduceEnvironmentClass());
@@ -407,14 +433,19 @@ public class SpringApplication {
 	private void prepareContext(ConfigurableApplicationContext context,
 			ConfigurableEnvironment environment, SpringApplicationRunListeners listeners,
 			ApplicationArguments applicationArguments, Banner printedBanner) {
+
 		// 设置 context 的 environment 属性
 	    context.setEnvironment(environment);
-	    // 设置 context 的一些属性
+
+	    // 容器后置处理设置 context 的一些属性
 		postProcessApplicationContext(context);
+
 		// 初始化 ApplicationContextInitializer
 		applyInitializers(context);
-        // 通知 SpringApplicationRunListener 的数组，Spring 容器准备完成。
+
+        // 通知启动监听的数组，Spring 容器准备完成。
 		listeners.contextPrepared(context);
+
 		// 打印日志
 		if (this.logStartupInfo) {
 			logStartupInfo(context.getParent() == null);
@@ -434,6 +465,7 @@ public class SpringApplication {
         // 加载 BeanDefinition 们
 		Set<Object> sources = getAllSources();
 		Assert.notEmpty(sources, "Sources must not be empty");
+		//加载我们的启动类，将启动类注入容器
 		load(context, sources.toArray(new Object[0]));
         // 通知 SpringApplicationRunListener 的数组，Spring 容器加载完成。
         listeners.contextLoaded(context);
@@ -502,7 +534,8 @@ public class SpringApplication {
 	private <T> List<T> createSpringFactoriesInstances(Class<T> type,
 			Class<?>[] parameterTypes, ClassLoader classLoader, Object[] args,
 			Set<String> names) {
-		List<T> instances = new ArrayList<>(names.size()); // 数组大小，细节~
+		// 数组大小，细节~
+		List<T> instances = new ArrayList<>(names.size());
 		// 遍历 names 数组
 		for (String name : names) {
 			try {
